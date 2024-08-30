@@ -26,9 +26,9 @@ using System.Text.Json.Nodes;
 
 namespace DotNetCheck.DotNet
 {
-	public class DotNetWorkloadManager
+	public class DotNetWorkloadsService
 	{
-		public DotNetWorkloadManager(string sdkRoot, string sdkVersion, params string[] nugetPackageSources)
+		public DotNetWorkloadsService(string sdkRoot, string sdkVersion, params string[] nugetPackageSources)
 		{
 			SdkRoot = sdkRoot;
 			SdkVersion = sdkVersion;
@@ -132,7 +132,7 @@ namespace DotNetCheck.DotNet
 			File.WriteAllText(rollbackFile, rollbackJson);
 
 			// dotnet workload install id --from-rollback-file --source x
-			var dotnetExe = Path.Combine(SdkRoot, DotNetSdk.DotNetExeName);
+			var dotnetExe = Path.Combine(SdkRoot, DotNetSdksService.DotNetExeName);
 
 			var args = new List<string>
 			{
@@ -158,7 +158,7 @@ namespace DotNetCheck.DotNet
 		async Task CliRepair()
 		{
 			// dotnet workload repair --source x
-			var dotnetExe = Path.Combine(SdkRoot, DotNetSdk.DotNetExeName);
+			var dotnetExe = Path.Combine(SdkRoot, DotNetSdksService.DotNetExeName);
 
 			var args = new List<string>
 			{

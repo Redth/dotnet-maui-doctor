@@ -2,10 +2,12 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using DotNetCheck.DotNet;
 using DotNetCheck.Models;
 using DotNetCheck.Solutions;
+using Microsoft.Deployment.DotNet.Releases;
 using Microsoft.NET.Sdk.WorkloadManifestReader;
 using Newtonsoft.Json.Linq;
 using NuGet.Versioning;
@@ -14,22 +16,19 @@ namespace DotNetCheck.Checkups
 {
 	public class DotNetCheckup : Checkup
 	{
-		public IEnumerable<Manifest.DotNetSdk> RequiredSdks
-			=> Manifest?.Check?.DotNet?.Sdks;
+		public ProductRelease? AvailableSdk
+			=> Manifest?.Check?.DotNet?.Release;
 
 		public override string Id => "dotnet";
 
 		public override string Title => $".NET SDK";
 
-		string SdkListToString()
-			=> (RequiredSdks?.Any() ?? false) ? "(" + string.Join(", ", RequiredSdks.Select(s => s.Version)) + ")" : string.Empty;
-
 		public override bool ShouldExamine(SharedState history)
-			=> RequiredSdks?.Any() ?? false;
+			=> AvailableSdk is not null;
 
 		public override async Task<DiagnosticResult> Examine(SharedState history)
 		{
-			var dn = new DotNetSdk(history);
+			var dn = new DotNetSdksService(history);
 
 			var missingDiagnosis = new DiagnosticResult(Status.Error, this, new Suggestion(".NET SDK not installed"));
 
@@ -38,42 +37,38 @@ namespace DotNetCheck.Checkups
 
 			var sdks = await dn.GetSdks();
 
-			var missingSdks = new List<Manifest.DotNetSdk>();
-			var sentinelFiles = new List<string>();
-
-			if (RequiredSdks?.Any() ?? false)
+			if (AvailableSdk is null)
 			{
-				foreach (var rs in RequiredSdks)
-				{
-					var rsVersion = NuGetVersion.Parse(rs.Version);
-
-					if (!sdks.Any(s => (rs.RequireExact && s.Version == rsVersion) || (!rs.RequireExact && s.Version >= rsVersion)))
-						missingSdks.Add(rs);
-				}
+				return new DiagnosticResult(Status.Error, this, "Cannot query available sdks");
 			}
 
+			var availableMajor = AvailableSdk.Version.Major;
+			
 			DotNetSdkInfo bestSdk = null;
-
+			
 			foreach (var sdk in sdks)
 			{
-				// See if the sdk is one of the required sdk's
-				var requiredSdk = RequiredSdks.FirstOrDefault(rs => sdk.Version == NuGetVersion.Parse(rs.Version));
-
-				if (requiredSdk != null)
+				// if the sdk's major version is the available one's major
+				// we should be ok, but we can maybe warn still if it's an older minor/patch
+				if (bestSdk is null || sdk.Version.Major >= AvailableSdk.Version.Major)
 				{
-					if (bestSdk == null || sdk.Version > bestSdk.Version)
-						bestSdk = sdk;
-
-					ReportStatus($"{sdk.Version} - {sdk.Directory}", Status.Ok);
+					// We'll settle for any SDK with this or newer major version
+					bestSdk = sdk;
+					
+					// Ideally the SDK's minor and patch are >= the available one
+					if (sdk.Version.Minor >= AvailableSdk.Version.Minor && sdk.Version.Patch >= AvailableSdk.Version.Patch)
+					{
+						ReportStatus($"{sdk.Version} - {sdk.Directory}", Status.Ok);
+					}
+					else // Warn if the minor/patch versions aren't newest
+					{
+						ReportStatus($"{sdk.Version} - {sdk.Directory}", Status.Warning);
+					}
 				}
 				else
 					ReportStatus($"{sdk.Version} - {sdk.Directory}", null);
 			}
-
-			// If we didn't get the exact one before, let's find a new enough one
-			if (bestSdk == null)
-				bestSdk = sdks.OrderByDescending(s => s.Version)?.FirstOrDefault();
-
+			
 			// Find newest compatible sdk
 			if (bestSdk != null)
 			{
@@ -81,30 +76,48 @@ namespace DotNetCheck.Checkups
 				history.SetEnvironmentVariable("DOTNET_SDK_VERSION", bestSdk.Version.ToString());
 			}
 
-			if (missingSdks.Any())
+			if (bestSdk is null)
 			{
-				var str = SdkListToString();
-
 				var remedies = new List<Solution>();
 
+				var currentRid = RuntimeInformation.RuntimeIdentifier;
+
+				var newestAvailableSdk = AvailableSdk.Sdks.OrderByDescending(
+						s => s.Version).First();
+
+				var sdkFilesForRid = newestAvailableSdk
+					.Files.Where(f => f.Rid.Equals(currentRid, StringComparison.OrdinalIgnoreCase));
+				
 				if (Util.CI)
 				{
-					remedies.AddRange(missingSdks
-						.Select(ms => new DotNetSdkScriptInstallSolution(ms.Version)));
+					remedies.Add(new DotNetSdkScriptInstallSolution(newestAvailableSdk.Version.ToString()));
 				}
 				else
 				{
-					remedies.AddRange(missingSdks
-						.Where(ms => !ms.Url.AbsolutePath.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
-						.Select(ms => new BootsSolution(ms.Url, ".NET SDK " + ms.Version) as Solution));
+					if (OperatingSystem.IsWindows())
+					{
+						var windowsInstaller = sdkFilesForRid.FirstOrDefault(f =>
+								f.FileName.EndsWith(".exe"));
 
-					remedies.AddRange(missingSdks
-						.Where(ms => ms.Url.AbsolutePath.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
-						.Select(ms => new MsInstallerSolution(ms.Url, ".NET SDK " + ms.Version)));
+						if (windowsInstaller is not null)
+						{
+							remedies.Add(new MsInstallerSolution(windowsInstaller.Address, $".NET SDK {AvailableSdk.Version} ({windowsInstaller.Rid}"));
+						}
+					}
+					else if (OperatingSystem.IsMacOS())
+					{
+						var macInstaller = sdkFilesForRid.FirstOrDefault(f =>
+								f.FileName.EndsWith(".pkg"));
+
+						if (macInstaller is not null)
+						{
+							remedies.Add(new BootsSolution(macInstaller.Address, $".NET SDK {AvailableSdk.Version} ({macInstaller.Rid}"));
+						}
+					}
 				}
 
-				return new DiagnosticResult(Status.Error, this, $".NET SDK {str} not installed.",
-							new Suggestion($"Download .NET SDK {str}",
+				return new DiagnosticResult(Status.Error, this, $".NET SDK {AvailableSdk.Version} not installed.",
+							new Suggestion($"Download .NET SDK {AvailableSdk.Version}",
 							remedies.ToArray()));
 			}
 

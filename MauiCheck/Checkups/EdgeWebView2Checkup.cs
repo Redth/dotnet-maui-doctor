@@ -1,4 +1,5 @@
-﻿using System.Threading.Tasks;
+﻿using System;
+using System.Threading.Tasks;
 using DotNetCheck.Models;
 
 namespace DotNetCheck.Checkups
@@ -18,6 +19,9 @@ namespace DotNetCheck.Checkups
 
 		public override Task<DiagnosticResult> Examine(SharedState history)
 		{
+			if (!OperatingSystem.IsWindows())
+				return Task.FromResult(new DiagnosticResult(Status.Error, this, "Invalid Platform"));
+			
 			// Info here: https://docs.microsoft.com/en-us/microsoft-edge/webview2/concepts/distribution#online-only-deployment
 			string WebView2RegistryKey = @"HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}";
 

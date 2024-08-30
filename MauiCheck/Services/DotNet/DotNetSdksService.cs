@@ -16,7 +16,7 @@ using NuGet.Versioning;
 
 namespace DotNetCheck.DotNet
 {
-	public class DotNetSdk
+	public class DotNetSdksService
 	{
 		public readonly string[] KnownDotnetLocations;
 
@@ -26,7 +26,7 @@ namespace DotNetCheck.DotNet
 		public static string DotNetExeName
 			=> Util.IsWindows ? "dotnet.exe" : "dotnet";
 
-		public DotNetSdk(SharedState sharedState)
+		public DotNetSdksService(SharedState sharedState)
 		{
 			KnownDotnetLocations = Util.Platform switch
 			{
@@ -44,6 +44,9 @@ namespace DotNetCheck.DotNet
 				Platform.OSX => new string[]
 				{
 					"/usr/local/share/dotnet/dotnet",
+					Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+						".dotnet",
+						DotNetExeName)
 				},
 				Platform.Linux => new string[]
 				{

@@ -22,7 +22,7 @@ namespace DotNetCheck.Checkups
 
 		public DotNetWorkloadsCheckup(SharedState sharedState, string sdkVersion, Uri workloadRollback, string[] workloadIds, params string[] nugetPackageSources) : base()
 		{
-			var dotnet = new DotNetSdk(sharedState);
+			var dotnet = new DotNetSdksService(sharedState);
 
 			SdkRoot = dotnet.DotNetSdkLocation.FullName;
 			SdkVersion = sdkVersion;
@@ -74,7 +74,7 @@ namespace DotNetCheck.Checkups
 			if (force)
 				wasForceRunAlready = true;
 
-			var workloadManager = new DotNetWorkloadManager(SdkRoot, sdkVersion, NuGetPackageSources);
+			var workloadManager = new DotNetWorkloadsService(SdkRoot, sdkVersion, NuGetPackageSources);
 
 			//var installedPackageWorkloads = workloadManager.GetInstalledWorkloads();
 
@@ -136,7 +136,7 @@ namespace DotNetCheck.Checkups
 								{
 									await workloadManager.Repair();
 								}
-								catch (Exception ex)
+								catch (Exception)
 								{
 									ReportStatus("Warning: Workload repair failed", Status.Warning);
 								}

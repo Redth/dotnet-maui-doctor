@@ -78,7 +78,7 @@ namespace DotNetCheck
 			=> RuntimeInformation.OSArchitecture == Architecture.Arm64;
 
 		public static bool IsWindows
-			=> Platform == Platform.Windows;
+			=> OperatingSystem.IsWindows();
 
 		public static bool IsMac
 			=> Platform == Platform.OSX;
@@ -120,7 +120,7 @@ namespace DotNetCheck
 		{
 			try
 			{
-				if (IsWindows)
+				if (OperatingSystem.IsWindows())
 				{
 					using (var identity = System.Security.Principal.WindowsIdentity.GetCurrent())
 					{

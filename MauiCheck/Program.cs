@@ -29,8 +29,9 @@ namespace DotNetCheck
 				new DotNetCheckup(),
 				new EdgeWebView2Checkup());
 
-			CheckupManager.RegisterCheckupContributors(
-				new DotNetSdkCheckupContributor());
+			// Skip workloads for now
+			// CheckupManager.RegisterCheckupContributors(
+			// 	new DotNetSdkCheckupContributor());
 
 
 			var app = new CommandApp();
