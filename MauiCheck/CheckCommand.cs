@@ -193,13 +193,13 @@ namespace DotNetCheck.Cli
 				if (diagnosis.HasSuggestion)
 				{
 					Console.WriteLine();
-					AnsiConsole.Render(new Rule());
+					AnsiConsole.Write(new Rule());
 					AnsiConsole.MarkupLine($"[bold blue]{Icon.Recommend} Recommendation:[/][blue] {diagnosis.Suggestion.Name}[/]");
 
 					if (!string.IsNullOrEmpty(diagnosis.Suggestion.Description))
 						AnsiConsole.MarkupLine("" + diagnosis.Suggestion.Description + "");
 
-					AnsiConsole.Render(new Rule());
+					AnsiConsole.Write(new Rule());
 					Console.WriteLine();
 
 					// See if we should fix
@@ -260,7 +260,7 @@ namespace DotNetCheck.Cli
 				checkup.OnStatusUpdated -= checkupStatusUpdated;
 			}
 
-			AnsiConsole.Render(new Rule());
+			AnsiConsole.Write(new Rule());
 			AnsiConsole.WriteLine();
 
 			var erroredChecks = results.Values.Where(d => d.Status == Models.Status.Error && !skippedChecks.Contains(d.Checkup.Id));
